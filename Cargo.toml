@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "chip8",
+    "sdl2_chip8",
+]

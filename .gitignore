@@ -1,0 +1,5 @@
+.vscode
+target
+chip8/target
+sdl2_chip8/target
+roms
