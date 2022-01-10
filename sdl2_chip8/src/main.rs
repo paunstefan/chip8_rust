@@ -1,21 +1,46 @@
 use core::time;
-use std::error::Error;
+use std::{env, error::Error, fs::File, io::Read};
 
+use ::chip8::io::Random;
 use ::chip8::*;
+use rand::prelude::*;
 use rand::Rng;
-use sdl2::{
-    event::Event,
-    keyboard::Keycode,
-    pixels::{Color, PixelFormatEnum},
-};
+use sdl2::{event::Event, keyboard::Keycode, pixels::PixelFormatEnum};
 
 const SCALE: usize = 20;
 
-fn main() {
-    run().unwrap();
+struct RandomNum {
+    rng: ThreadRng,
 }
 
-fn run() -> Result<(), Box<dyn Error>> {
+impl RandomNum {
+    fn new() -> Self {
+        Self {
+            rng: rand::thread_rng(),
+        }
+    }
+}
+
+impl Random for RandomNum {
+    fn randint(&mut self) -> u8 {
+        self.rng.gen()
+    }
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    let mut file = File::open(&args[1]).unwrap();
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).unwrap();
+
+    let random = RandomNum::new();
+
+    let chip8 = chip8::Chip8::new(&data, random);
+
+    run(chip8).unwrap();
+}
+
+fn run(mut machine: chip8::Chip8<RandomNum>) -> Result<(), Box<dyn Error>> {
     let sdl_context = sdl2::init()?;
     let video = sdl_context.video()?;
 
@@ -51,9 +76,34 @@ fn run() -> Result<(), Box<dyn Error>> {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'gameloop,
+                Event::KeyDown {
+                    keycode: Some(keycode),
+                    ..
+                } => machine.set_key(0, true),
+                Event::KeyUp {
+                    keycode: Some(keycode),
+                    ..
+                } => machine.set_key(0, false),
                 _ => {}
             }
         }
+
+        machine.execute_instruction();
+
+        tex_display.with_lock(None, |buffer: &mut [u8], _pitch: usize| {
+            for y in 0..chip8::SCREEN_HEIGHT {
+                for x in 0..chip8::SCREEN_WIDTH {
+                    let pixel = machine.get_pixel(x, y);
+
+                    let color: u8 = if pixel { 255 } else { 0 };
+                    let pos = (y * chip8::SCREEN_WIDTH + x) * 3;
+
+                    buffer[pos] = color;
+                    buffer[pos + 1] = color;
+                    buffer[pos + 2] = color;
+                }
+            }
+        })?;
 
         canvas.clear();
         canvas.copy(&tex_display, None, None)?;
