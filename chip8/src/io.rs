@@ -1,3 +1,3 @@
 pub trait Random {
-    fn randint(&self) -> u8;
+    fn randint(&mut self) -> u8;
 }

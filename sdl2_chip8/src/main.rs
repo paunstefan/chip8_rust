@@ -77,18 +77,66 @@ fn run(mut machine: chip8::Chip8<RandomNum>) -> Result<(), Box<dyn Error>> {
                     ..
                 } => break 'gameloop,
                 Event::KeyDown {
-                    keycode: Some(keycode),
-                    ..
-                } => machine.set_key(0, true),
+                    keycode: Some(key), ..
+                } => {
+                    let index = match key {
+                        Keycode::Kp7 => 0,
+                        Keycode::Kp8 => 1,
+                        Keycode::Kp9 => 2,
+                        Keycode::Kp4 => 3,
+                        Keycode::Kp5 => 4,
+                        Keycode::Kp6 => 5,
+                        Keycode::Kp1 => 6,
+                        Keycode::Kp2 => 7,
+                        Keycode::Kp3 => 8,
+                        Keycode::Q => 9,
+                        Keycode::W => 10,
+                        Keycode::E => 11,
+                        Keycode::R => 12,
+                        Keycode::A => 13,
+                        Keycode::S => 14,
+                        Keycode::D => 15,
+                        _ => 16,
+                    };
+                    machine.set_key(index, true);
+                }
                 Event::KeyUp {
-                    keycode: Some(keycode),
-                    ..
-                } => machine.set_key(0, false),
+                    keycode: Some(key), ..
+                } => {
+                    let index = match key {
+                        Keycode::Kp7 => 0,
+                        Keycode::Kp8 => 1,
+                        Keycode::Kp9 => 2,
+                        Keycode::Kp4 => 3,
+                        Keycode::Kp5 => 4,
+                        Keycode::Kp6 => 5,
+                        Keycode::Kp1 => 6,
+                        Keycode::Kp2 => 7,
+                        Keycode::Kp3 => 8,
+                        Keycode::Q => 9,
+                        Keycode::W => 10,
+                        Keycode::E => 11,
+                        Keycode::R => 12,
+                        Keycode::A => 13,
+                        Keycode::S => 14,
+                        Keycode::D => 15,
+                        _ => 16,
+                    };
+                    machine.set_key(index, false)
+                }
                 _ => {}
             }
         }
 
-        machine.execute_instruction();
+        for _ in 0..10 {
+            machine.execute_instruction();
+        }
+
+        machine.decrement_delay();
+
+        if machine.sound_tick() {
+            // BEEP
+        }
 
         tex_display.with_lock(None, |buffer: &mut [u8], _pitch: usize| {
             for y in 0..chip8::SCREEN_HEIGHT {
@@ -109,7 +157,7 @@ fn run(mut machine: chip8::Chip8<RandomNum>) -> Result<(), Box<dyn Error>> {
         canvas.copy(&tex_display, None, None)?;
         canvas.present();
 
-        std::thread::sleep(time::Duration::from_millis(16));
+        std::thread::sleep(time::Duration::from_millis(15));
     }
 
     Ok(())
