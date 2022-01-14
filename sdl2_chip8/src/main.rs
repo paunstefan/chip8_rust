@@ -5,6 +5,8 @@ use ::chip8::io::Random;
 use ::chip8::*;
 use rand::prelude::*;
 use rand::Rng;
+use sdl2::audio::AudioCallback;
+use sdl2::audio::AudioSpecDesired;
 use sdl2::{event::Event, keyboard::Keycode, pixels::PixelFormatEnum};
 
 const SCALE: usize = 20;
@@ -27,8 +29,49 @@ impl Random for RandomNum {
     }
 }
 
+struct SquareWave {
+    phase_inc: f32,
+    phase: f32,
+    volume: f32,
+}
+
+impl AudioCallback for SquareWave {
+    type Channel = f32;
+
+    fn callback(&mut self, out: &mut [f32]) {
+        // Generate a square wave
+        for x in out.iter_mut() {
+            *x = if self.phase <= 0.5 {
+                self.volume
+            } else {
+                -self.volume
+            };
+            self.phase = (self.phase + self.phase_inc) % 1.0;
+        }
+    }
+}
+
+#[allow(non_snake_case)]
+fn print_debug_info(machine: &chip8::Chip8<RandomNum>) {
+    let (PC, instruction, V, I) = machine.get_debug_info();
+    println!(
+        "{:x} {:x} {}",
+        PC,
+        instruction,
+        chip8::Chip8::<RandomNum>::print_instruction(instruction)
+    );
+    for r in V.iter().take(15) {
+        print!("{} ", r);
+    }
+    println!("I: {}", I);
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        println!("Usage: chip8_sdl2 [rom_file]");
+        std::process::exit(1);
+    }
     let mut file = File::open(&args[1]).unwrap();
     let mut data = Vec::new();
     file.read_to_end(&mut data).unwrap();
@@ -43,7 +86,25 @@ fn main() {
 fn run(mut machine: chip8::Chip8<RandomNum>) -> Result<(), Box<dyn Error>> {
     let sdl_context = sdl2::init()?;
     let video = sdl_context.video()?;
+    let audio = sdl_context.audio()?;
 
+    // Initialize audio device
+    let desired_spec = AudioSpecDesired {
+        freq: Some(44100),
+        channels: Some(1), // mono
+        samples: None,     // default sample size
+    };
+
+    let device = audio.open_playback(None, &desired_spec, |spec| {
+        // initialize the audio callback
+        SquareWave {
+            phase_inc: 440.0 / spec.freq as f32,
+            phase: 0.0,
+            volume: 0.25,
+        }
+    })?;
+
+    // Initialize video device
     let window = video
         .window(
             "chip8-sdl2",
@@ -128,6 +189,8 @@ fn run(mut machine: chip8::Chip8<RandomNum>) -> Result<(), Box<dyn Error>> {
             }
         }
 
+        print_debug_info(&machine);
+
         for _ in 0..10 {
             machine.execute_instruction();
         }
@@ -135,7 +198,9 @@ fn run(mut machine: chip8::Chip8<RandomNum>) -> Result<(), Box<dyn Error>> {
         machine.decrement_delay();
 
         if machine.sound_tick() {
-            // BEEP
+            device.resume();
+        } else {
+            device.pause()
         }
 
         tex_display.with_lock(None, |buffer: &mut [u8], _pitch: usize| {

@@ -7,5 +7,5 @@ edition = "2018"
 
 [dependencies]
 sdl2 = "0.35"
-chip8 = { path = "../chip8" }
+chip8 = { path = "../chip8", features = ["debug"]  }
 rand = "0.8"

@@ -26,31 +26,34 @@ const FONTSET: [u8; 80] =
 pub const SCREEN_WIDTH: usize = 64;
 pub const SCREEN_HEIGHT: usize = 32;
 
+/// Address of PC start
 const GAME_ROM_OFFSET: usize = 0x200;
 
+/// CHIP-8 machine state
 pub struct Chip8<R>
 where
     R: Random,
 {
     memory: [u8; 4096],
-    // 16 general purpose registers
+    /// 16 general purpose registers
     V: [u8; 16],
-    // Pointer register
+    /// Pointer register
     I: u16,
-    // Program counter
+    /// Program counter
     PC: u16,
 
-    // Special registers, when non-zero they decrement at a rate of 60Hz
+    /// Special registers, when non-zero they decrement at a rate of 60Hz
     delay: u8,
     sound: u8,
 
-    // Stack pointer and the 16 value stack
+    /// Stack pointer and the 16 value stack
     SP: u8,
     stack: [u16; 16],
 
-    // generic IO structs
+    /// generic IO structs
     rand: R,
 
+    /// Graphics buffer
     gfx: [u8; SCREEN_WIDTH * SCREEN_HEIGHT],
     keyboard: [bool; 16],
 }
@@ -59,6 +62,7 @@ impl<R> Chip8<R>
 where
     R: Random,
 {
+    /// Build a new Chip8 machine
     pub fn new(game: &[u8], rand: R) -> Self {
         let mut memory = [0; 4096];
         memory[..FONTSET.len()].copy_from_slice(&FONTSET);
@@ -79,6 +83,7 @@ where
         }
     }
 
+    /// Execute a single instruction
     pub fn execute_instruction(&mut self) {
         // instructions are 16bit MSB
         let instruction: u16 = ((self.memory[self.PC as usize] as u16) << 8)
@@ -91,18 +96,6 @@ where
             (instruction & 0x00F0) >> 4,
             instruction & 0x000F,
         );
-        {
-            println!(
-                "{:x} {:x} {}",
-                self.PC,
-                instruction,
-                self.print_instruction(instruction)
-            );
-            for i in 0..15 {
-                print!("{} ", self.V[i]);
-            }
-            println!("I: {}", self.I);
-        }
 
         self.PC += 2;
 
@@ -296,22 +289,28 @@ where
         self.keyboard[key as usize]
     }
 
+    /// Set the pressed state of a key
     pub fn set_key(&mut self, key: u8, state: bool) {
         if key < 16 {
             self.keyboard[key as usize] = state;
         }
     }
 
+    /// Returns the state of a pixel
     pub fn get_pixel(&self, x: usize, y: usize) -> bool {
         self.gfx[y * SCREEN_WIDTH + x] != 0
     }
 
+    /// Decrement the delay counter
     pub fn decrement_delay(&mut self) {
         if self.delay > 0 {
             self.delay -= 1;
         }
     }
 
+    /// Decrement sound counter
+    ///
+    /// Returns true if it is already 0
     pub fn sound_tick(&mut self) -> bool {
         if self.sound > 0 {
             self.sound -= 1;
@@ -320,7 +319,21 @@ where
         false
     }
 
-    fn print_instruction(&self, instruction: u16) -> String {
+    /// Returns PC, next instruction, registers and pointer register
+    #[cfg(feature = "debug")]
+    pub fn get_debug_info(&self) -> (u16, u16, [u8; 16], u16) {
+        (
+            self.PC,
+            ((self.memory[self.PC as usize] as u16) << 8)
+                + self.memory[(self.PC as usize) + 1] as u16,
+            self.V,
+            self.I,
+        )
+    }
+
+    /// Print the opcode definition
+    #[cfg(feature = "debug")]
+    pub fn print_instruction(instruction: u16) -> String {
         let opcode = (
             (instruction & 0xF000) >> 12,
             (instruction & 0x0F00) >> 8,
